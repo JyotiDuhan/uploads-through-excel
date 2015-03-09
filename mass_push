@@ -1,0 +1,284 @@
+<?php
+
+
+ini_set('memory_limit', '-1');
+date_default_timezone_set('UTC');
+
+require 'includes/DB.php';
+require '../includes/Utils.php';
+
+// Load PHPExcel
+require '../vendor/PHPExcel/Classes/PHPExcel/IOFactory.php';
+
+$file = 'data/<file_name>.xlsx';
+
+$cursor = PHPExcel_IOFactory::load($file);
+
+$cols = [
+  'listing_title',
+  'page_heading',
+  'summary_pricing',
+  'advantages',
+  'media_option1',
+  'media_option2',
+  'media_option3',
+  'media_option4',
+  'pricing',
+  
+  'contact_person_id',
+  'template_id',
+  'quick_link_nomen',
+  'contact_us_nomen',
+  'created_by',
+  'main_image_alt',
+  'is_visible',
+  'status',
+];
+
+
+
+foreach ($cursor->getWorksheetIterator() as $worksheet_key => $worksheet) {
+
+  if ($worksheet_key !== 0) continue;
+
+  $worksheet_title = $worksheet->getTitle();
+  $highest_row = $worksheet->getHighestRow();
+  $highest_col = $worksheet->getHighestColumn();
+  
+  for ($row = 2; $row <= $highest_row; ++$row) {
+    //$col = 0;
+    //$cell = $worksheet->getCellByColumnAndRow($col, $row);
+    
+    //Utils::dumpString($cell);
+
+
+    $sql = "INSERT INTO <base table> (url_slug) VALUES ('lol')";
+    $dbh->query($sql);
+    $media_option_id = (int) $dbh->lastInsertId();
+
+    $sql = "UPDATE <base_table>
+            SET
+              listing_title = :listing_title,
+              quick_link_nomen = :quick_link_nomen,
+              contact_us_nomen = :contact_us_nomen,
+              created_by = $created_by,
+              main_image_alt = :listing_title,
+              status = $status,
+              is_visible = $is_visible,
+              template_id = $template_id,
+              post_order = :post_order
+            WHERE id = $id";
+    //echo $sql; die();
+    $stmt = $dbh->prepare($sql);
+    $stmt->bindParam(':listing_title', $listing_title);
+    $stmt->bindParam(':page_heading', $page_heading);
+    $stmt->bindParam(':page_title', $page_title);
+    $stmt->bindParam(':meta_desc', $meta_desc);
+    $stmt->bindParam(':url_slug', $url_slug);
+    $stmt->bindParam(':quick_link_nomen', $quick_link_nomen);
+    $stmt->bindParam(':contact_us_nomen', $contact_us_nomen);
+    $stmt->bindParam(':post_order', $post_order);
+
+    // for `media_option_template_section`
+    $sql = "INSERT INTO <table_name>
+            SET
+              id = $id,
+              template_section_id = 1,
+              title = '',
+              content = :content,
+              tab_name = 'Summary'";
+
+    $tpl_section_stmt = $dbh->prepare($sql);
+    $tpl_section_stmt->bindParam(':content', $opening_para_content);
+
+    // About
+    $sql = "INSERT INTO <table_name>
+            SET
+              id = $id,
+              template_section_id = 21,
+              title = :title,
+              content = :content,
+              tab_name = 'About'";
+
+    $about_stmt = $dbh->prepare($sql);
+    $about_stmt->bindParam(':title', $about_title);
+    $about_stmt->bindParam(':content', $about_content);
+
+    // Advantages
+    $sql = "INSERT INTO <table_name>
+            SET
+              id = $id,
+              template_section_id = 25,
+              title = :title,
+              content = :content,
+              tab_name = 'Advantages'";
+
+    $advantages_stmt = $dbh->prepare($sql);
+    $advantages_stmt->bindParam(':title', $advantages_title);
+    $advantages_stmt->bindParam(':content', $advantages_content);
+
+     // Image
+    $sql = "INSERT INTO <table_name>
+            SET
+              media_option_id = $media_option_id,
+              template_section_id = 24,
+              title = :title,
+              content = :content,
+              tab_name = 'Reference Images'";
+
+    $media_option_stmt = $dbh->prepare($sql);
+    $media_option_stmt->bindParam(':title', $media_option_title);
+    $media_option_stmt->bindParam(':content', $media_option_content);
+
+    //Media Option Images
+    $sql = "INSERT INTO <table_name>
+            SET
+              id = $id,
+              alt = :listing_title,
+              created_at = NOW(),
+              updated_at = NOW(),
+              old_src = :old_src";
+
+    $image_stmt = $dbh->prepare($sql);
+    $image_stmt->bindParam(':listing_title', $listing_title);
+    $image_stmt->bindParam(':old_src', $image_url);
+    
+    // Pricing
+    $sql = "INSERT INTO <table_name>
+            SET
+              id = $id,
+              template_section_id = 22,
+              title = :title,
+              content = :content,
+              tab_name = 'Pricing'";
+
+    $pricing_stmt = $dbh->prepare($sql);
+    $pricing_stmt->bindParam(':title', $pricing_title);
+    $pricing_stmt->bindParam(':content', $pricing_content);
+
+    //summary field Min. billing
+    $sql = "INSERT INTO <table_name>
+            SET
+              id = $id,
+              summary_field_id = :summary_field_id,
+              value = :summary_field_value,
+              is_displayed = 1";
+
+    $summary_field_stmt = $dbh->prepare($sql);
+    $summary_field_stmt->bindParam(':summary_field_id', $summary_field_id);
+    $summary_field_stmt->bindParam(':summary_field_value', $summary_field_value);
+
+
+    foreach ($cols as $key => $val) {
+      $col = $key;
+      $cell = $worksheet->getCellByColumnAndRow($col, $row)->getValue();
+
+      Utils::dumpString($cell);
+
+      switch ($val) {
+        case 'listing_title':
+          $listing_title = $cell;
+          break;
+
+        case 'page_heading':
+          $page_heading = $cell;
+          break;
+
+        case 'page_title':
+          $page_title = $cell;
+          break;
+
+        case 'url_slug':
+          $url_slug = $cell;
+          break;
+
+        case 'meta_desc':
+          $meta_desc = str_replace('[t]', "&#x2714", $cell);
+          break;
+
+        case 'image_url':
+          $image_url = $cell;
+
+          $image_stmt->execute();
+          break;
+
+        case 'opening_paragraph':
+          $opening_para_content = "\n<p>$cell</p>";
+          
+          $tpl_section_stmt->execute();
+          break;
+
+        case 'about':
+          $about_title = "About $listing_title";
+          $about_content = "\n<p>$cell</p>";
+
+          $about_stmt->execute();
+          break;
+        
+        case 'summary_pricing':
+          $summary_field_value = $cell;
+          $summary_field_id = 6;
+
+          $summary_field_stmt->execute();
+          break;
+
+        case 'advantages':
+          $advantages_title = "Advantages of $listing_title";
+          $advantages_content = "\n<p>$cell</p>";
+          //$advantages_content = str_replace('â€¢','<ul><li></li></ul>',"\n<p>$cell</p>");
+          $advantages_stmt->execute();
+          break;
+ 
+        case 'media_option1':
+          $media_option_title = "Reference Images for $listing_title";
+          $media_option_content = "<p><img src='$cell' style='height:400px;width:500px;'></p>\n";
+
+          break; 
+
+        case 'media_option2':
+          //$media_option_title = "Reference Images for $listing_title";
+          $media_option_content .= "<p><img src='$cell' style='height:400px;width:500px;'></p>\n";
+
+          break; 
+
+        case 'media_option3':
+          //$media_option_title = "Reference Images for $listing_title";
+          $media_option_content .= "<p><img src='$cell' style='height:400px;width:500px;'></p>\n";
+
+          break; 
+
+        case 'media_option4':
+          //$media_option_title = "Reference Images for $listing_title";
+          $media_option_content .= "<p><img src='$cell' style='height:400px;width:500px;'></p>\n";
+
+           $media_option_stmt->execute();
+          break; 
+
+        case 'pricing':
+          $pricing_title = "Pricing for $listing_title";
+          $pricing_content = "\n<p>$cell</p>";
+
+          $pricing_stmt->execute();
+          break;   
+        
+      }
+    }
+
+   
+    $quick_link_nomen = "Quick Links for $listing_title";
+    $contact_us_nomen = "$page_heading";
+
+    $sql = "SELECT post_order FROM <base_table> ORDER BY post_order DESC";
+    $post_order = (int) $dbh->query($sql)->fetch()['post_order'];
+    $post_order = $post_order + 1;
+
+    // Finally execute the base table statement
+    $stmt->execute();
+    //var_dump( $dbh->errorInfo() );
+    
+
+  }
+
+}
+
+
